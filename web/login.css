@@ -1,0 +1,77 @@
+/* ============================================================================
+   Otto — login page only. Shares tokens and controls with base.css.
+   One 360 px column, wordmark, two fields, one primary action.
+   ========================================================================== */
+
+.auth-body {
+  display: grid;
+  place-items: center;
+  padding: 32px 20px calc(32px + env(safe-area-inset-bottom));
+}
+
+.auth {
+  display: grid;
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-brand {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--text);
+}
+
+.auth-tagline {
+  margin-top: 6px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 30px;
+}
+
+.auth-submit {
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.auth-error {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+.auth-error[hidden] { display: none; }
+
+.auth-switch {
+  margin-top: 20px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--faint);
+}
+
+.auth-link {
+  padding: 0 0 0 5px;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+}
+.auth-link:hover { color: var(--text); text-decoration-color: rgba(255, 255, 255, 0.4); }
+
+.auth-optional {
+  font-size: 11px;
+  color: var(--faint);
+}

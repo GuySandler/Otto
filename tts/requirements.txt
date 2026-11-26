@@ -1,0 +1,24 @@
+# Local Qwen3-TTS streaming service (tts/server.py).
+#
+# Install into the GPU venv:
+#   uv venv --python 3.12 tts/.venv
+#   uv pip install --python tts/.venv/bin/python -r tts/requirements.txt
+#
+# The RTX 5060 Ti is Blackwell (sm_120): the PyPI torch wheels do not contain
+# kernels for it, so the CUDA 12.8 wheel index is required.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch==2.11.0
+torchaudio==2.11.0
+
+faster-qwen3-tts==0.5.4
+# REQUIRED PIN. transformers 5.24 breaks Qwen3-TTS Mimi encoder init
+# ("property 'upsample' has no setter" at load time); tts/compat.py only papers
+# over the read-only properties on 5.15.x.
+transformers==5.15.1
+
+fastapi
+uvicorn[standard]
+numpy
+soundfile
+soxr

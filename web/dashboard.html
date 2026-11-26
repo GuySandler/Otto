@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="Otto — what the conversation left for you to finish." />
+<title>Otto — dashboard</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/static/base.css" />
+<link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body class="dash-body">
+
+<header class="dash-bar">
+  <div class="dash-bar-left">
+    <a class="dash-wordmark" href="/">Otto</a>
+    <span class="dash-divider" aria-hidden="true"></span>
+    <span class="dash-page-name">Dashboard</span>
+  </div>
+  <div class="dash-bar-right">
+    <div class="account">
+      <button type="button" class="account-btn" id="account-btn" aria-haspopup="menu" aria-expanded="false"
+              aria-controls="account-menu" aria-label="Account">
+        <span id="account-initials">·</span>
+      </button>
+      <div class="account-menu" id="account-menu" role="menu" aria-labelledby="account-btn" hidden>
+        <p class="account-email" id="account-email">—</p>
+        <a class="menu-item" id="menu-settings" role="menuitem" href="/">Settings</a>
+        <button type="button" class="menu-item" id="menu-signout" role="menuitem">Sign out</button>
+      </div>
+    </div>
+    <a class="btn primary dash-new" href="/">New conversation</a>
+  </div>
+</header>
+
+<main class="dash">
+  <h1 class="dash-title">Dashboard</h1>
+  <p class="dash-summary" id="dash-summary">—</p>
+
+  <section class="dash-section">
+    <h2 class="dash-section-title" id="actions-title">Actions required</h2>
+    <div class="action-list" id="action-list" aria-live="polite"></div>
+    <p class="dash-empty" id="actions-empty">
+      Nothing waiting on you.
+      <span class="dash-empty-hint">Drafts and events Otto prepares during a conversation show up here.</span>
+    </p>
+    <p class="dash-error" id="actions-error" role="alert" hidden></p>
+  </section>
+
+  <details class="dash-recent" id="recent">
+    <summary class="dash-recent-summary">Recently done</summary>
+    <div class="done-list" id="done-list"></div>
+    <p class="dash-empty small" id="done-empty">Nothing finished yet.</p>
+  </details>
+</main>
+
+<script type="module" src="/static/dashboard.js"></script>
+</body>
+</html>

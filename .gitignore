@@ -1,0 +1,17 @@
+# virtualenvs
+.venv/
+tts/.venv/
+__pycache__/
+*.py[cod]
+
+# secrets & runtime data
+.env
+secrets/
+data/
+*.log
+
+# misc
+.pytest_cache/
+.DS_Store
+node_modules/
+*.egg-info/

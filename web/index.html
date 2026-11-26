@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="Otto — a low-latency, interruptible voice assistant." />
+<title>Otto</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/static/base.css" />
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">Otto</span>
+      <span class="brand-dot" id="brand-dot" data-state="connecting" aria-hidden="true"></span>
+    </div>
+
+    <div class="topbar-right">
+      <span class="pill" id="conn-pill" data-state="connecting">
+        <span class="pill-dot" aria-hidden="true"></span>
+        <span id="conn-label">Connecting</span>
+      </span>
+      <button type="button" class="actions-badge" id="actions-badge" title="Actions required" hidden>
+        <span class="actions-badge-dot" aria-hidden="true"></span>
+        <span id="actions-badge-label"></span>
+      </button>
+      <button type="button" class="end-btn" id="end-btn" aria-label="End conversation"
+              title="End conversation (Shift+Esc)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 4h3.5A1.5 1.5 0 0 1 19 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14" />
+          <path d="M10 8.5 13.5 12 10 15.5M13 12H4" />
+        </svg>
+        <span>End</span>
+      </button>
+      <div class="account">
+        <button type="button" class="account-btn" id="account-btn" aria-haspopup="menu" aria-expanded="false"
+                aria-controls="account-menu" aria-label="Account">
+          <span id="account-initials">·</span>
+        </button>
+        <div class="account-menu" id="account-menu" role="menu" aria-labelledby="account-btn" hidden>
+          <p class="account-email" id="account-email">—</p>
+          <button type="button" class="menu-item" id="menu-settings" role="menuitem">Settings</button>
+          <button type="button" class="menu-item" id="menu-connections" role="menuitem">Connections</button>
+          <button type="button" class="menu-item" id="menu-end" role="menuitem">End conversation</button>
+          <div class="menu-rule" aria-hidden="true"></div>
+          <button type="button" class="menu-item" id="menu-signout" role="menuitem">Sign out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main" id="main">
+    <section class="hero" id="hero">
+      <div class="orb" id="orb">
+        <canvas id="orb-canvas" aria-hidden="true"></canvas>
+        <button type="button" class="orb-hit" id="orb-hit" aria-label="Enable microphone">
+          <span>Enable mic</span>
+        </button>
+      </div>
+      <div class="status">
+        <p class="status-line">
+          <span class="state-label" id="state-label">Connecting</span>
+          <span class="state-detail" id="state-detail"></span>
+        </p>
+        <p class="live-caption" id="live-caption" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="log-wrap">
+      <div class="log-empty" id="log-empty">
+        <p class="log-empty-title">Talk naturally.</p>
+        <p class="log-empty-sub">Otto listens while it speaks — cut in any time.</p>
+        <div class="chips">
+          <button type="button" class="chip" data-prompt="What's on my calendar today?">What's on today?</button>
+          <button type="button" class="chip" data-prompt="Anything unread in my inbox worth knowing about?">Check my inbox</button>
+          <button type="button" class="chip" data-prompt="Post a quick hello to #general on Slack.">Message #general</button>
+        </div>
+      </div>
+      <div class="log" id="transcript" role="log" aria-live="polite" aria-relevant="additions text"
+           aria-label="Conversation transcript"></div>
+    </section>
+  </main>
+
+  <footer class="composer-wrap">
+    <div class="metrics" id="metrics" hidden></div>
+    <button type="button" class="activity-strip" id="activity-strip" hidden>
+      <span class="activity-dot" aria-hidden="true"></span>
+      <span class="activity-text" id="activity-text"></span>
+      <span class="activity-unseen" id="activity-unseen" hidden></span>
+    </button>
+    <form class="composer" id="composer" autocomplete="off">
+      <button type="button" class="mic" id="mic-btn" aria-pressed="true" aria-label="Mute microphone">
+        <svg class="mic-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round">
+          <rect x="9" y="3" width="6" height="10" rx="3" />
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" />
+        </svg>
+        <svg class="mic-off-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round">
+          <path d="M15 5.5a3 3 0 0 0-6 0v5M9 13.2V14a3 3 0 0 0 5.6 1.5" />
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 9.8 5.7M18.5 11.5v.5M12 18v3M4 3l16 18" />
+        </svg>
+        <span class="mic-ring" aria-hidden="true"></span>
+      </button>
+
+      <div class="meter" id="meter" aria-hidden="true"></div>
+
+      <input class="text-input" id="text-input" type="text" placeholder="Message Otto…" enterkeyhint="send"
+             spellcheck="false" autocomplete="off" aria-label="Type a message" />
+
+      <button type="submit" class="send" id="send-btn" aria-label="Send message">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+        </svg>
+      </button>
+      <button type="button" class="stop" id="stop-btn" aria-label="Stop speaking" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="2.2" />
+        </svg>
+      </button>
+    </form>
+    <p class="hint"><kbd>Space</kbd> hold-to-talk · <kbd>Esc</kbd> stop · <kbd>⌘K</kbd> settings</p>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<aside class="drawer" id="drawer" aria-label="Settings" aria-hidden="true">
+  <header class="drawer-head">
+    <h2>Settings</h2>
+    <button type="button" class="icon-btn" id="drawer-close" aria-label="Close settings">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round">
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="drawer-body">
+    <section class="sheet-section" id="section-account">
+      <h3 class="section-title">Account</h3>
+      <div class="identity">
+        <span class="identity-avatar" id="sheet-initials" aria-hidden="true">·</span>
+        <div class="identity-text">
+          <span class="identity-name" id="sheet-name">—</span>
+          <span class="identity-email" id="sheet-email">—</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <button type="button" class="btn ghost" id="sheet-signout">Sign out</button>
+      </div>
+    </section>
+
+    <section class="sheet-section" id="section-connections">
+      <h3 class="section-title">Connections</h3>
+
+      <div class="conn" id="conn-google">
+        <div class="conn-head">
+          <span class="conn-name">Google</span>
+          <span class="conn-badge" id="google-badge" data-state="off">Checking…</span>
+        </div>
+        <p class="conn-note">Gmail and Calendar, so Otto can read mail and manage events.</p>
+        <div class="conn-note" id="google-config-note" hidden>
+          <p>
+            No OAuth client on the server yet. Create one in Google Cloud
+            (<a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer noopener">Credentials</a>
+            → <em>OAuth client ID</em> → <em>Web application</em>) and register this redirect URI:
+          </p>
+          <button type="button" class="conn-copy" id="google-redirect-copy" title="Copy the redirect URI">
+            <code id="google-redirect-uri">/oauth/google/callback</code>
+            <span class="conn-copy-hint">copy</span>
+          </button>
+          <p>
+            Then save the downloaded JSON as <code>secrets/google_client.json</code> and restart —
+            the full walkthrough is in <code>docs/AUTH.md</code>.
+          </p>
+        </div>
+        <p class="conn-note conn-detail" id="google-error-note" data-level="error" hidden></p>
+        <div class="field-row">
+          <button type="button" class="btn" id="google-connect" disabled>Connect Google</button>
+          <button type="button" class="btn ghost" id="google-disconnect" hidden>Disconnect</button>
+        </div>
+
+        <div class="conn-sub" id="conn-mcp">
+          <div class="conn-head">
+            <span class="conn-name">Workspace MCP</span>
+            <span class="conn-badge" id="mcp-badge" data-state="off">Checking…</span>
+          </div>
+          <p class="conn-note" id="mcp-note">
+            Gmail and Calendar run through Google's MCP servers.
+          </p>
+          <p class="conn-note conn-detail" id="mcp-detail" hidden></p>
+          <div class="field-row">
+            <button type="button" class="btn ghost small" id="mcp-check">Check again</button>
+            <button type="button" class="btn ghost small" id="mcp-test">Test connection</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="conn" id="conn-slack">
+        <div class="conn-head">
+          <span class="conn-name">Slack</span>
+          <span class="conn-badge" id="slack-badge" data-state="off">Checking…</span>
+        </div>
+        <label class="field">
+          <span class="field-label">Bot token</span>
+          <input class="control" type="password" id="slack-token" placeholder="xoxb-…"
+                 autocomplete="off" spellcheck="false" aria-label="Slack bot token" />
+        </label>
+        <p class="field-note" id="slack-note">Stored on the server; a saved token is never shown again.</p>
+        <div class="field-row">
+          <button type="button" class="btn" id="slack-save">Save</button>
+          <button type="button" class="btn ghost" id="slack-remove" hidden>Remove</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="sheet-section" id="section-conversation">
+      <h3 class="section-title">Conversation</h3>
+      <label class="field">
+        <span class="field-label">Model</span>
+        <select class="control" id="set-model"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">Thinking</span>
+        <select class="control" id="set-thinking">
+          <option value="">Model default</option>
+          <option value="minimal">Minimal</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+      <p class="field-note">Thinking trades answer quality for speed; the default comes from the server config.</p>
+      <label class="field">
+        <span class="field-label">Personality</span>
+        <select class="control" id="set-personality"></select>
+      </label>
+      <p class="field-note" id="personality-note"></p>
+      <div class="field-row">
+        <button type="button" class="btn ghost" id="edit-personality">Edit personality</button>
+        <span class="field-note" id="personality-status"></span>
+      </div>
+    </section>
+
+    <section class="sheet-section" id="section-voice">
+      <h3 class="section-title">Voice</h3>
+      <label class="field">
+        <span class="field-label">Voice</span>
+        <select class="control" id="set-voice"></select>
+      </label>
+      <div class="field-row">
+        <button type="button" class="btn ghost" id="preview-voice">Preview voice</button>
+        <span class="field-note" id="preview-status"></span>
+      </div>
+      <label class="field">
+        <span class="field-label">Voice instruct</span>
+        <textarea class="control" id="set-instruct" rows="3"
+                  placeholder="Speak warmly, slightly faster, British accent…"></textarea>
+      </label>
+    </section>
+
+    <section class="sheet-section" id="section-listening">
+      <h3 class="section-title">Listening</h3>
+      <label class="field range">
+        <span class="field-label">VAD sensitivity <b id="sen-value">55</b></span>
+        <input type="range" id="set-sensitivity" min="0" max="100" step="1" />
+        <span class="range-ends"><span>noisy room</span><span>quiet room</span></span>
+      </label>
+      <label class="field range">
+        <span class="field-label">End of speech <b id="silence-value">550 ms</b></span>
+        <input type="range" id="set-silence" min="200" max="2000" step="25" />
+        <span class="range-ends"><span>quick replies</span><span>patience grows as you talk</span></span>
+      </label>
+      <label class="field range">
+        <span class="field-label">Interrupt after <b id="interrupt-value">250 ms</b></span>
+        <input type="range" id="set-interrupt" min="150" max="600" step="25" />
+      </label>
+      <p class="field-note">Turns end after a real pause; Otto yields only to sustained speech.</p>
+      <label class="field">
+        <span class="field-label">Input device</span>
+        <select class="control" id="set-device"></select>
+      </label>
+      <label class="field toggle">
+        <input type="checkbox" id="set-transcript-text" />
+        <span class="switch" aria-hidden="true"></span>
+        <span class="toggle-label">Send transcript text
+          <small>Use the browser's speech recognition and send text turns instead of streaming audio.</small>
+        </span>
+      </label>
+    </section>
+
+    <section class="sheet-section" id="section-capabilities">
+      <h3 class="section-title">Capabilities</h3>
+      <label class="field toggle">
+        <input type="checkbox" id="set-parallel-agents" />
+        <span class="switch" aria-hidden="true"></span>
+        <span class="toggle-label">Parallel subagents
+          <small>Let Otto fan work out to parallel subagents when a request has independent parts.</small>
+        </span>
+      </label>
+      <label class="field toggle">
+        <input type="checkbox" id="set-background-model" />
+        <span class="switch" aria-hidden="true"></span>
+        <span class="toggle-label">Background model
+          <small id="set-background-model-note">Run subagents and background jobs on the model's cheaper variant.</small>
+        </span>
+      </label>
+    </section>
+
+    <section class="sheet-section" id="section-advanced">
+      <h3 class="section-title">Advanced (debug)</h3>
+      <label class="field toggle">
+        <input type="checkbox" id="set-debug" />
+        <span class="switch" aria-hidden="true"></span>
+        <span class="toggle-label">Debug
+          <small>Show latency metrics and log protocol events to the console.</small>
+        </span>
+      </label>
+      <div class="status-chips">
+        <span class="badge" id="badge-model" title="Active model">model</span>
+        <span class="badge" id="badge-llm" title="Lunaroute API key" hidden>LLM</span>
+        <span class="badge" id="badge-tts" title="Local text-to-speech" hidden>Voice</span>
+      </div>
+      <div class="kv"><span>Session</span><code id="info-session">—</code></div>
+      <div class="kv"><span>Server</span><code id="info-version">—</code></div>
+      <div class="kv"><span>Mic</span><code id="info-mic">idle</code></div>
+      <button type="button" class="btn ghost" id="btn-reconnect">Reconnect socket</button>
+    </section>
+  </div>
+</aside>
+
+<div class="toasts" id="toasts" aria-live="assertive" aria-atomic="false"></div>
+
+<dialog class="persona-dialog" id="persona-dialog" aria-labelledby="persona-title">
+  <form class="persona-form" id="persona-form">
+    <header class="persona-head">
+      <div>
+        <h2 id="persona-title">Edit personality</h2>
+        <span class="field-note" id="persona-id"></span>
+      </div>
+      <button type="button" class="icon-btn" id="persona-close" aria-label="Close editor">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </header>
+    <label class="field">
+      <span class="field-label">Display name</span>
+      <input class="control" type="text" id="persona-name" autocomplete="off" />
+    </label>
+    <label class="field persona-prompt-field">
+      <span class="field-label">Who Otto is — the system prompt</span>
+      <textarea class="control" id="persona-prompt" rows="18" spellcheck="false"></textarea>
+    </label>
+    <p class="field-note">
+      Saved as a user override in <code>data/personalities/&lt;id&gt;.yaml</code>; the shipped file
+      stays untouched. Takes effect in this session as soon as you save.
+    </p>
+    <footer class="persona-actions">
+      <span class="field-note" id="persona-error" role="status"></span>
+      <button type="button" class="btn ghost" id="persona-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="persona-save">Save</button>
+    </footer>
+  </form>
+</dialog>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+# Otto — application configuration
+#
+# Everything here is safe to edit; the UI can override model/voice/personality
+# per session. Secrets live in .env, never here.
+
+app:
+  name: Otto
+  host: 127.0.0.1
+  port: 8800
+
+lunaroute:
+  base_url: https://gw.lunaroute.com/v1
+  # models offered in the UI (any model id exposed by /v1/models also works)
+  models:
+    - deepseek-4.1-flash
+    - glm-5.3-flash
+    - glm-5.3
+    - muse-spark-open
+  default_model: deepseek-4.1-flash
+  request_timeout_s: 120
+  # the "*‑background" sibling Lunaroute exposes for some models; used for
+  # subagents and background jobs when that toggle is on
+  background_suffix: "-background"
+  # extra body sent with every chat completion
+  extra_body: {}
+  # per-model overrides; keys are exact model ids
+  model_options:
+    deepseek-4.1-flash:
+      # low reasoning is the sweet spot for voice: a fraction of the latency of
+      # the default pass, still better at multi-step tool use than "no thinking"
+      extra_body:
+        reasoning_effort: low
+    deepseek-4.1-flash-background:
+      extra_body:
+        reasoning_effort: low
+    glm-5.3-flash:
+      extra_body:
+        reasoning_effort: low
+
+# Model Context Protocol. Google now requires AI agents to reach Workspace through
+# their MCP servers (from Feb 1 2027 the REST APIs are closed to agents), so the
+# Gmail and Calendar tools are MCP-backed by default.
+mcp:
+  enabled: true
+  # mcp    → MCP is the front door; the classic APIs only answer refused calls
+  # auto   → MCP when it works, classic APIs listed for the model directly too
+  # rest   → ignore MCP entirely (legacy)
+  mode: mcp
+  # MCP-first with a classic-API safety net. Google's MCP servers went GA on
+  # 24 Nov 2026 but the rollout reaches each project over up to ~10 days; while
+  # a call is refused, it is retried over the same operation on the classic
+  # Gmail/Calendar APIs, so voice requests still get real answers. REST twins
+  # of MCP tools stay hidden from the model; tools MCP lacks (send, delete)
+  # become callable directly once their scope is granted.
+  # STRICT MCP instead: set to false — the REST tools are then unregistered and
+  # refusals surface verbatim. This is the one line to change.
+  allow_rest_fallback: true
+  timeout_s: 30
+  discover_timeout_s: 8
+  tool_cache_s: 600
+  # Google publishes form-sized schemas (create_event alone is ~9 KB with
+  # conferences, working locations, reminders…). Pruning them to what a spoken
+  # request needs halves the context cost per turn. Set false to send verbatim.
+  prune_schemas: true
+  max_schema_description: 110
+  servers:
+    gmail:
+      # /mcp/v1self = Google's endpoint for MCP hosts without form-elicitation
+      # support (Otto runs its own confirmation flow). /mcp/v1 exposes two extra
+      # sensitive-label tools, but can pause a call mid-flight to demand
+      # interactive approval Otto cannot show.
+      url: https://gmailmcp.googleapis.com/mcp/v1self
+      # The whole toolbox: Otto knows everything it can do and never has to
+      # say "I can't". prune_schemas keeps the per-turn context cost sane, and
+      # tools without REST twins simply wait for the MCP rollout.
+      tools:
+        include: []
+    calendar:
+      url: https://calendarmcp.googleapis.com/mcp/v1self
+      tools:
+        include:
+          - list_events
+          - search_events
+          - get_event
+          - list_calendars
+          - suggest_time
+          - create_event
+          - update_event
+          - delete_event   # only exposed on /mcp/v1 (needs elicitation) — v1self skips it
+          - respond_to_event
+
+# What Otto asks for when a user connects Google: exactly the scope set Google
+# documents for its MCP servers (GA, Nov 2026). Declare the same list on the
+# consent screen's Data Access page before reconnecting — an undeclared scope
+# fails consent with invalid_scope. `gmail.send` is deliberately absent: Gmail's
+# MCP server has no send tool (Otto drafts, you press send).
+google:
+  scopes:
+    - https://www.googleapis.com/auth/gmail.readonly
+    - https://www.googleapis.com/auth/gmail.compose
+    - https://www.googleapis.com/auth/gmail.modify
+    - https://www.googleapis.com/auth/calendar.calendarlist.readonly
+    - https://www.googleapis.com/auth/calendar.events.freebusy
+    - https://www.googleapis.com/auth/calendar.events.readonly
+    - https://www.googleapis.com/auth/calendar.events
+    - https://www.googleapis.com/auth/userinfo.email
+
+stt:
+  # whisper-large-v3 round-trips ~2x faster than parakeet through the gateway
+  model: whisper-large-v3
+  language: null          # null = auto
+  partials: true          # live captions while the user speaks
+  partial_interval_ms: 550
+  min_utterance_ms: 220   # ignore blips shorter than this
+  max_utterance_s: 120    # hard ceiling only — the browser ends turns on speech pauses
+
+tts:
+  enabled: true
+  url: http://127.0.0.1:8801
+  request_timeout_s: 60
+  # segmentation: first chunk kept short for fast time-to-first-audio
+  first_chunk_max_chars: 60
+  max_chunk_chars: 220
+  # don't give TTS a 3-word fragment — let the next sentence join it
+  min_chunk_chars: 40
+  # merge sentences that are already queued into one synthesis request, so the
+  # prosody carries across the sentence boundary instead of resetting
+  coalesce_queue: true
+  coalesce_max_chars: 260
+  # fall back to text-only when the local model is unavailable
+  allow_degraded: true
+
+turn_taking:
+  # how long the client should wait for silence before ending an utterance
+  endpoint_silence_ms: 550
+  barge_in_enabled: true
+  # if the model calls a tool without having said anything, speak a filler after this delay
+  tool_filler_delay_ms: 250
+  # if the model has not produced a first token by then, say a short hedge so the
+  # silence never exceeds ~1.5s (0 disables)
+  first_token_filler_ms: 1100
+  # if the browser stops sending audio mid-utterance (stuck VAD, killed tab),
+  # transcribe what we have and run the turn instead of waiting forever
+  utterance_stall_s: 6
+  max_tool_iterations: 6
+  confirmation_timeout_s: 180
+  history_turns: 24
+
+# Parallel subagents (the *split work* toggle). Read-only tools only: a
+# subagent can look things up, never send, post, delete or ask for confirmation.
+agents:
+  max_parallel: 4
+  max_steps: 4
+  timeout_s: 120
+  tool_allowlist:
+    - gmail_search
+    - gmail_read
+    - calendar_list_events
+    - slack_search
+    - slack_read_channel
+    - slack_list_channels
+    - get_current_time
+    - recall
+
+# Detached work that announces itself when it lands.
+jobs:
+  max_concurrent: 3
+  keep_results: 12
+
+session:
+  max_audio_seconds: 120
+  # system prompt additions that are always applied on top of the personality
+  global_rules: |
+    You are speaking out loud. Never use markdown, bullet points, emoji, code
+    blocks, tables, URLs or stage directions — everything you write is read
+    aloud by a text-to-speech engine.
+    Keep turns short and conversational: one to three sentences unless the user
+    asks for detail. Ask a brief follow-up question when it helps.
+    Say tool results out loud in a natural way instead of reading raw data.
+    Do exactly what was asked and stop: never enumerate optional extras (more
+    reminders, invitees, locations, Meet links) or ask about details the user
+    did not mention. Confirm the finished result in one short sentence.
+
+    Conversation memory: the block below labelled "Items seen earlier in this
+    conversation" lists real ids from earlier tool calls. When the user says
+    "that event", "it", "the first one" or "move it to four", resolve it from
+    that block and call the tool with the id — never guess a new id, and never
+    claim you cannot remember.
+
+    Background work: long jobs can run with start_background_task. Say one short
+    sentence that you're on it and let the conversation continue — the result is
+    announced to you when it lands. Never wait silently and never invent it.

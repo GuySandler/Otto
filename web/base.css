@@ -1,0 +1,306 @@
+/* ============================================================================
+   Otto — shared foundation: tokens, reset, controls.
+   Loaded by index.html and login.html so both share one palette and one set of
+   button/input/switch styles. App-specific layout lives in styles.css.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- tokens --- */
+:root {
+  color-scheme: dark;
+
+  /* canvas: near-black, warm neutral */
+  --bg-0: #0c0d0f;
+  --bg-1: #131518;
+  --canvas: radial-gradient(1200px 820px at 50% -14%, #131518, #0c0d0f 64%);
+
+  --text: #e9eaee;
+  --text-soft: #c7cad2;
+  --muted: #8b8f99;
+  --faint: #6b6f79;
+
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --rule: rgba(255, 255, 255, 0.06);
+  --surface-1: rgba(255, 255, 255, 0.03);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.08);
+
+  --accent: #a7b4d6;
+  --accent-soft: rgba(167, 180, 214, 0.16);
+  --good: #6ecfa6;
+  --warn: #d9bd86;
+  --danger: #d98d92;
+  --danger-soft: rgba(217, 141, 146, 0.12);
+
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 12px;
+  --r-pill: 999px;
+
+  --t-fast: 150ms;
+  --t-slow: 220ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  --font: ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* overlays are the only surfaces allowed a shadow */
+  --shadow-overlay: 0 28px 70px -30px rgba(0, 0, 0, 0.95);
+}
+
+/* ------------------------------------------------------------------ base --- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html,
+body { height: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--canvas) fixed;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; }
+code, pre, kbd { font-family: var(--mono); }
+
+:focus-visible {
+  outline: 2px solid rgba(167, 180, 214, 0.65);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.16); }
+
+kbd {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-soft);
+}
+
+/* --------------------------------------------------------------- buttons --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+.btn:hover { color: var(--text); background: var(--surface-2); border-color: var(--line-strong); }
+.btn:disabled,
+.btn[disabled] { opacity: 0.42; cursor: default; }
+.btn:disabled:hover,
+.btn[disabled]:hover { color: var(--text-soft); background: transparent; border-color: var(--line); }
+
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { border-color: var(--line); background: var(--surface-2); }
+
+.btn.primary {
+  background: #e9ebef;
+  border-color: #e9ebef;
+  color: #111215;
+}
+.btn.primary:hover { background: #f7f8fa; border-color: #f7f8fa; color: #0b0c0e; }
+
+.btn.danger {
+  background: var(--danger-soft);
+  border-color: rgba(217, 141, 146, 0.26);
+  color: #e9bfc2;
+}
+.btn.danger:hover { background: rgba(217, 141, 146, 0.18); border-color: rgba(217, 141, 146, 0.38); color: #f4d6d8; }
+
+.btn kbd { pointer-events: none; border-color: var(--rule); }
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.icon-btn:hover { color: var(--text); background: var(--surface-2); border-color: var(--line); }
+
+/* ------------------------------------------------------- inputs & fields --- */
+.control {
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.control::placeholder { color: var(--faint); }
+.control:hover { background: rgba(255, 255, 255, 0.055); }
+.control:focus {
+  outline: none;
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+textarea.control {
+  height: auto;
+  min-height: 76px;
+  padding: 9px 11px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+select.control {
+  appearance: none;
+  padding-right: 30px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.field { display: grid; gap: 6px; }
+[hidden] { display: none !important; }
+
+.field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.field-label b {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.field-note {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+.field-note[data-level="error"] { color: var(--danger); }
+
+.field-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.field.range input[type="range"] {
+  width: 100%;
+  height: 20px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.16);
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: #dfe2e9;
+}
+input[type="range"]::-moz-range-track { height: 2px; border-radius: var(--r-pill); background: rgba(255, 255, 255, 0.16); }
+input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #dfe2e9; }
+
+/* iOS-style switch with a 12 px description line under the label */
+.field.toggle {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 11px;
+  cursor: pointer;
+}
+.field.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background var(--t-fast) var(--ease);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c3c7d0;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.field.toggle input:checked + .switch { background: rgba(167, 180, 214, 0.55); }
+.field.toggle input:checked + .switch::after { transform: translateX(16px); background: #f4f6fa; }
+.field.toggle input:focus-visible + .switch { outline: 2px solid rgba(167, 180, 214, 0.65); outline-offset: 2px; }
+.field.toggle.disabled { opacity: 0.5; cursor: default; }
+
+.toggle-label { font-size: 13px; color: var(--text-soft); line-height: 1.45; }
+.toggle-label small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--faint); }
+
+/* ---------------------------------------------------------------- motion --- */
+@keyframes pulse-fade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

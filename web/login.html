@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="Sign in to Otto." />
+<title>Otto — sign in</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/static/base.css" />
+<link rel="stylesheet" href="/static/login.css" />
+</head>
+<body class="auth-body">
+<main class="auth">
+  <h1 class="auth-brand">Otto</h1>
+  <p class="auth-tagline" id="auth-tagline">Sign in to continue</p>
+
+  <form class="auth-form" id="auth-form" novalidate>
+    <label class="field" id="auth-name-field" hidden>
+      <span class="field-label">Name <span class="auth-optional">optional</span></span>
+      <input class="control" id="auth-name" name="name" type="text" autocomplete="name" spellcheck="false" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Email</span>
+      <input class="control" id="auth-email" name="email" type="email" autocomplete="username"
+             spellcheck="false" autocapitalize="off" required autofocus />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Password</span>
+      <input class="control" id="auth-password" name="password" type="password"
+             autocomplete="current-password" required />
+    </label>
+
+    <p class="auth-error" id="auth-error" role="alert" hidden></p>
+
+    <button class="btn primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+  </form>
+
+  <p class="auth-switch">
+    <span id="auth-switch-text">New here?</span>
+    <button type="button" class="auth-link" id="auth-switch">Create account</button>
+  </p>
+</main>
+
+<script type="module" src="/static/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,337 @@
+/* ============================================================================
+   Otto — dashboard page only. Shares tokens and controls with base.css.
+   The calm "after the call" view: one 860 px column, no orb, no transcript.
+   Sections: bar · column · actions · recently done · account · responsive
+   ========================================================================== */
+
+.dash-body {
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* -------------------------------------------------------------- top bar --- */
+.dash-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 56px;
+  padding: 0 clamp(16px, 4vw, 28px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.dash-bar-left,
+.dash-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dash-wordmark {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-decoration: none;
+}
+.dash-wordmark:hover { color: #fff; }
+
+.dash-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--line-strong);
+}
+
+.dash-page-name {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dash-new { flex: none; }
+
+/* --------------------------------------------------------------- column --- */
+.dash {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(28px, 6vh, 60px) clamp(16px, 4vw, 28px) 64px;
+}
+
+.dash-title {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.dash-summary {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.dash-section { margin-top: clamp(26px, 5vh, 42px); }
+
+.dash-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* -------------------------------------------------------------- actions --- */
+.action-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.acard {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  transition:
+    opacity var(--t-slow) var(--ease),
+    transform var(--t-slow) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.acard:hover { border-color: var(--line-strong); }
+.acard.leaving { opacity: 0; transform: translateY(-3px); }
+
+.acard-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.acard-kind {
+  padding: 1px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.acard-time {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.acard-title {
+  margin-top: 9px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.acard-sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.acard-detail {
+  margin-top: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.acard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dash-empty {
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--text-soft);
+}
+.dash-empty.small { font-size: 12.5px; color: var(--faint); }
+
+.dash-empty-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.dash-error {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+.dash-error[hidden] { display: none; }
+
+/* --------------------------------------------------------- recently done --- */
+.dash-recent {
+  margin-top: clamp(28px, 5vh, 44px);
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
+.dash-recent-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  cursor: pointer;
+  list-style: none;
+}
+.dash-recent-summary::-webkit-details-marker { display: none; }
+.dash-recent-summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform var(--t-fast) var(--ease);
+}
+.dash-recent[open] .dash-recent-summary::before { transform: rotate(90deg); }
+.dash-recent-summary:hover { color: var(--muted); }
+
+.done-list {
+  display: grid;
+  margin-top: 6px;
+}
+
+.done-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 13px;
+  transition: opacity var(--t-slow) var(--ease);
+}
+.done-row:last-child { border-bottom: 0; }
+.done-row.leaving { opacity: 0; }
+
+.done-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.done-when {
+  flex: none;
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.done-reopen {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+.done-reopen:hover { color: var(--text); text-decoration-color: rgba(255, 255, 255, 0.4); }
+
+/* --------------------------------------------------------------- account --- */
+.account { position: relative; }
+
+.account-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.account-btn:hover { color: var(--text); background: var(--surface-3); border-color: var(--line-strong); }
+
+.account-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: 25;
+  min-width: 208px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: #14161a;
+  box-shadow: var(--shadow-overlay);
+}
+.account-menu[hidden] { display: none; }
+
+.account-email {
+  padding: 8px 10px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.menu-item:hover { color: var(--text); background: var(--surface-2); }
+
+/* ------------------------------------------------------------ responsive --- */
+@media (max-width: 640px) {
+  .dash-bar { height: 52px; padding: 0 16px; }
+  .dash { padding: 26px 16px 56px; }
+  .dash-title { font-size: 22px; }
+  .dash-new { height: 30px; padding: 0 10px; font-size: 12.5px; }
+  .acard { padding: 14px; }
+  .acard-actions { gap: 6px; }
+  .done-title { white-space: normal; }
+}
