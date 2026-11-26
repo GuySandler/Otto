@@ -112,10 +112,23 @@ async def _search(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     )
 
 
+def _spoken_when(value: str) -> str:
+    """'2026-11-26T15:00:00-08:00' → 'Friday, November 26 at 3 PM'."""
+    text = str(value or "").strip()
+    try:
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text[:16].replace("T", " at ") if "T" in text else text
+    hour = moment.strftime("%I").lstrip("0") or "12"
+    minute = moment.strftime("%M")
+    clock = f"{hour}:{minute}" if minute != "00" else hour
+    return f"{moment.strftime('%A, %B')} {moment.day} at {clock} {moment.strftime('%p')}"
+
+
 def _create_prompt(args: dict[str, Any]) -> str:
     summary = str(args.get("summary") or "an event")
     start = str(args.get("start") or "")
-    when = start[:16].replace("T", " ") if "T" in start else start
+    when = _spoken_when(start) if start else "that time"
     return f"I'll put {summary} on the calendar for {when}. Should I add it?"
 
 
@@ -196,9 +209,9 @@ def _update_prompt(args: dict[str, Any]) -> str:
     target = str(args.get("event_id") or args.get("hint") or "that event")
     bits = []
     if args.get("start"):
-        bits.append(f"move it to {str(args['start'])[:16].replace('T', ' at ')}")
+        bits.append(f"move it to {_spoken_when(str(args['start']))}")
     if args.get("end"):
-        bits.append(f"end at {str(args['end'])[:16].replace('T', ' at ')}")
+        bits.append(f"end at {_spoken_when(str(args['end']))}")
     if args.get("location"):
         bits.append(f"set the location to {args['location']}")
     reminders = args.get("reminders")

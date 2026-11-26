@@ -14,6 +14,8 @@ better than a crash mid-conversation.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -78,12 +80,16 @@ def _when(event: dict[str, Any]) -> str:
         end_text = end
     if not start_text:
         start_text = _pick(event, "startTime", "start_time", "startsAt")
-    if start_text and "T" in start_text:
-        when = start_text[:16].replace("T", " ")
-        if "T" in end_text:
-            when += f"–{end_text[11:16]}"
-        return when
-    return start_text
+    start_moment = _parse_moment(start_text)
+    if start_moment is None:
+        return start_text
+    day = f"{start_moment.strftime('%A, %B')} {start_moment.day}"
+    end_moment = _parse_moment(end_text)
+    if end_moment is None:
+        return f"{day} at {_clock(start_moment)}"
+    if end_moment.date() == start_moment.date():
+        return f"{day} from {_clock(start_moment)} to {_clock(end_moment)}"
+    return f"{day} at {_clock(start_moment)} until {_clock(end_moment)}"
 
 
 def _email_card(item: dict[str, Any]) -> dict[str, Any]:
@@ -285,10 +291,31 @@ def _event_create_prompt(args: dict[str, Any]) -> str:
     return f"I'll put {title} on the calendar for {when}. Should I add it?"
 
 
+def _parse_moment(value: str) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _clock(moment: datetime) -> str:
+    """'3 PM' / '3:30 PM' — how a person says a time out loud."""
+    hour = moment.strftime("%I").lstrip("0") or "12"
+    minute = moment.strftime("%M")
+    clock = f"{hour}:{minute}" if minute != "00" else hour
+    return f"{clock} {moment.strftime('%p')}"
+
+
 def _short_when(value: str) -> str:
-    """'2026-11-26T15:00:00-08:00' → '2026-11-26 at 15:00' — speakable."""
-    text = str(value)
-    return text[:16].replace("T", " at ") if "T" in text else text
+    """'2026-11-26T15:00:00-08:00' → 'Friday, November 26 at 3 PM' — speakable."""
+    moment = _parse_moment(value)
+    if moment is None:
+        text = str(value)
+        return text[:16].replace("T", " at ") if "T" in text else text
+    return f"{moment.strftime('%A, %B')} {moment.day} at {_clock(moment)}"
 
 
 def _describe_event_change(args: dict[str, Any]) -> list[str]:

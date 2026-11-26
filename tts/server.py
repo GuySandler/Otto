@@ -44,8 +44,10 @@ DISCONNECT_POLL_S = 0.25
 
 DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 DEFAULT_INSTRUCT = (
-    "Speak like a warm, engaging friend in a spoken conversation: natural pace, "
-    "gentle emphasis, small pauses at commas, and a smile in the voice."
+    "Speak like a warm, relaxed friend in a spoken conversation. Keep a calm, "
+    "even pace: do not rush or speed up toward the end of long sentences, and "
+    "hold the same energy and tone from one sentence to the next, breathing "
+    "briefly between sentences the way a person naturally would."
 )
 DEFAULT_SAMPLE_TEXT = "Hi, I'm Otto. This is how I sound when we talk."
 DEFAULT_VOICE = "Aiden"
@@ -110,7 +112,10 @@ class Config:
     max_chars: int = 400
     trim_silence: bool = True
     lead_keep_ms: int = 12
-    tail_keep_ms: int = 55
+    #: a fixed, identical breath after every segment — the model's own tail is
+    #: trimmed away and replaced, so cadence stays even across seams
+    pause_ms: int = 160
+    tail_keep_ms: int = 25
     tail_hold_ms: int = 150
 
     @classmethod
@@ -126,8 +131,9 @@ class Config:
             max_chars=max(1, _env_int("OTTO_TTS_MAX_CHARS", 400)),
             trim_silence=os.environ.get("OTTO_TTS_TRIM_SILENCE", "1").strip().lower()
             in {"1", "true", "yes", "on"},
+            pause_ms=max(0, _env_int("OTTO_TTS_PAUSE_MS", 160)),
             lead_keep_ms=max(0, _env_int("OTTO_TTS_LEAD_KEEP_MS", 12)),
-            tail_keep_ms=max(0, _env_int("OTTO_TTS_TAIL_KEEP_MS", 55)),
+            tail_keep_ms=max(0, _env_int("OTTO_TTS_TAIL_KEEP_MS", 25)),
             tail_hold_ms=max(0, _env_int("OTTO_TTS_TAIL_HOLD_MS", 150)),
         )
 
@@ -364,6 +370,16 @@ def _apply_speed(chunks: Iterator[np.ndarray], speed: float) -> Iterator[np.ndar
     tail = stream.resample_chunk(np.zeros(0, dtype=np.float32), last=True)
     if tail.size:
         yield tail
+
+
+def _breath(pause_ms: int) -> bytes:
+    """Fixed silence appended to every segment.
+
+    Each synthesis call paces itself slightly differently, so whatever the
+    model leaves at the end is trimmed and replaced with one identical breath —
+    sentence transitions sound deliberate instead of random.
+    """
+    return b"\x00" * max(0, int(pause_ms * SAMPLE_RATE / 1000)) * 2
 
 
 def _pcm16(chunk: np.ndarray) -> bytes:
@@ -620,6 +636,9 @@ async def _speak_pcm(request: Request, engine: Engine, req: SpeechRequest) -> As
                 if tail:
                     samples += len(tail) // 2
                     yield tail
+                breath = _breath(engine.cfg.pause_ms)
+                samples += len(breath) // 2
+                yield breath
                 break
             if isinstance(item, BaseException):
                 log.error("generation failed after %d samples of audio: %r", samples, item)

@@ -866,9 +866,9 @@ def test_update_prompt_speaks_changes_not_ids():
     prompt = _event_update_prompt({"eventId": "e1", "summary": "Root canal"})
     assert prompt.startswith("I'll rename") and "'Root canal'" in prompt
 
-    # a move
+    # a move — the timestamp is spoken like a person, not an ISO string
     prompt = _event_update_prompt({"eventId": "e1", "startTime": "2026-11-26T15:00:00-08:00"})
-    assert "move it to 2026-11-26 at 15:00" in prompt
+    assert "move it to Thursday, November 26 at 3 PM" in prompt
 
     # the model passing the current title as an identifier must not read as a rename
     prompt = _event_update_prompt({

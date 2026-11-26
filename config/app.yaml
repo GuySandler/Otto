@@ -124,9 +124,11 @@ tts:
   # don't give TTS a 3-word fragment — let the next sentence join it
   min_chunk_chars: 40
   # merge sentences that are already queued into one synthesis request, so the
-  # prosody carries across the sentence boundary instead of resetting
+  # prosody carries across the sentence boundary instead of resetting. The cap
+  # keeps any single synthesis short enough that the voice does not drift;
+  # each seam gets an identical breath from the TTS server.
   coalesce_queue: true
-  coalesce_max_chars: 260
+  coalesce_max_chars: 200
   # fall back to text-only when the local model is unavailable
   allow_degraded: true
 
