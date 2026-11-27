@@ -16,6 +16,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "anyio>=4.0"]
+# local TTS service (tts/server.py) — Chatterbox is the default backend,
+# faster-qwen3-tts the alternative; the torch build must match your GPU
+# (Blackwell/RTX 50-series needs the cu128 wheels)
+tts = ["chatterbox-tts>=0.1.7", "faster-qwen3-tts>=0.5"]
 
 [project.scripts]
 otto = "otto.main:main"

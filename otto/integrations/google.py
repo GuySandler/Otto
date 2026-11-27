@@ -408,6 +408,51 @@ class GoogleClient:
         calendar = str(calendar_id or self.settings.gcal_calendar_id or "primary")
         return f"{CALENDAR_BASE}/{quote(calendar, safe='')}/events"
 
+    # ------------------------------------------------------------- people api
+    async def people_profile(self) -> dict[str, Any]:
+        """The user's own name and email — used to sign drafted email."""
+        data = await self._request(
+            "GET",
+            "https://people.googleapis.com/v1/people/me",
+            params={"personFields": "names,emailAddresses"},
+        )
+        names = data.get("names") or []
+        display = ""
+        for entry in names:
+            display = str(entry.get("displayName") or "").strip()
+            if display:
+                break
+        email = ""
+        for entry in data.get("emailAddresses") or []:
+            email = str(entry.get("value") or "").strip()
+            if email:
+                break
+        return {"name": display, "email": email or str(self.account_email or "")}
+
+    async def people_search(self, query: str, *, limit: int = 5) -> list[dict[str, Any]]:
+        """Search the user's Google contacts by name; returns name + email."""
+        data = await self._request(
+            "GET",
+            "https://people.googleapis.com/v1/people/me/connections",
+            params={
+                "query": str(query or "").strip(),
+                "personFields": "names,emailAddresses",
+                "pageSize": max(1, min(int(limit), 10)),
+            },
+        )
+        out: list[dict[str, Any]] = []
+        for person in data.get("connections") or []:
+            name = ""
+            for entry in person.get("names") or []:
+                name = str(entry.get("displayName") or "").strip()
+                if name:
+                    break
+            emails = [str(e.get("value")) for e in (person.get("emailAddresses") or []) if e.get("value")]
+            if name or emails:
+                out.append({"name": name or "(unnamed)", "email": emails[0] if emails else "",
+                            "emails": emails})
+        return out
+
     async def calendar_list(
         self,
         time_min: str | None = None,

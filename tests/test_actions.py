@@ -24,9 +24,9 @@ def stores(tmp_path):
 
 def test_gmail_deep_links():
     assert gmail_url(draft_id="d1", account_email="me@x.com") == (
-        "https://mail.google.com/mail/u/me%40x.com/#drafts?compose=d1"
+        "https://mail.google.com/mail/u/me%40x.com/#drafts"
     )
-    assert gmail_url(draft_id="d1") == "https://mail.google.com/mail/u/0/#drafts?compose=d1"
+    assert gmail_url(draft_id="d1") == "https://mail.google.com/mail/u/0/#drafts"
     assert gmail_url(thread_id="t9") == "https://mail.google.com/mail/u/0/#all/t9"
     assert gmail_url() == "https://mail.google.com/mail/u/0/#drafts"
 
@@ -47,7 +47,8 @@ def test_actions_from_a_draft_display():
     assert spec["kind"] == "draft"
     assert spec["title"] == "Re: lease renewal"
     assert spec["subtitle"] == "to sarah@acme.com, sam@acme.com"
-    assert "compose=draft_42" in spec["url"]
+    # drafts land on the Drafts label — per-draft compose links are unreliable
+    assert spec["url"] == "https://mail.google.com/mail/u/me%40x.com/#drafts"
     assert spec["ref"] == "draft:draft_42"
 
 

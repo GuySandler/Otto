@@ -272,7 +272,7 @@ def test_actions_api_roundtrip(client):
         kind="draft",
         title="Re: lease",
         subtitle="to sarah@acme.com",
-        url="https://mail.google.com/mail/u/0/#drafts?compose=d1",
+        url="https://mail.google.com/mail/u/0/#drafts",
         ref="draft:d1",
         source="gmail_draft",
     )

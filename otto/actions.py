@@ -64,12 +64,13 @@ class Action:
 def gmail_url(*, draft_id: str = "", message_id: str = "", thread_id: str = "", account_email: str = "") -> str:
     """Best-effort deep link into the user's Gmail.
 
-    Drafts use Gmail's compose deep link, which opens the draft itself; anything
-    else lands on the message. Both degrade to the drafts list.
+    Gmail's per-draft compose deep links are unreliable with API draft ids, so
+    drafts land on the Drafts label — one click from the message itself. A
+    message or thread id still deep-links to the message.
     """
     user = f"/{quote(account_email)}" if account_email else "/0"
     if draft_id:
-        return f"{MAIL_BASE}{user}/#drafts?compose={quote(str(draft_id))}"
+        return f"{MAIL_BASE}{user}/#drafts"
     target = message_id or thread_id
     if target:
         return f"{MAIL_BASE}{user}/#all/{quote(str(target))}"

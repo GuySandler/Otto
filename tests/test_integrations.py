@@ -621,3 +621,43 @@ async def test_slack_call_maps_ok_false_to_integration_error(settings):
     message = str(excinfo.value)
     assert "missing_scope" in message
     assert "channels:history" in message
+
+
+async def test_people_profile_and_search(monkeypatch, settings):
+    import httpx
+
+    from otto.integrations.google import GoogleClient
+
+    def transport_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host != "people.googleapis.com":
+            return httpx.Response(500, json={"error": "wrong host"})
+        if request.url.path.endswith("/people/me"):
+            return httpx.Response(200, json={
+                "names": [{"displayName": "Guy Sandler"}],
+                "emailAddresses": [{"value": "guy@sandler.co.il"}],
+            })
+        assert request.url.params["query"] == "david"
+        return httpx.Response(200, json={
+            "connections": [
+                {"names": [{"displayName": "David Byrne"}],
+                 "emailAddresses": [{"value": "david@boss.com"}, {"value": "david2@boss.com"}]},
+                {"names": [{"displayName": "Dana"}], "emailAddresses": []},
+            ]
+        })
+
+    async def fake_ensure_token(self, *, force=False):
+        return "token"
+
+    monkeypatch.setattr(GoogleClient, "_ensure_token", fake_ensure_token)
+    client = GoogleClient(settings)
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(transport_handler))
+    try:
+        profile = await client.people_profile()
+        assert profile == {"name": "Guy Sandler", "email": "guy@sandler.co.il"}
+
+        matches = await client.people_search("david")
+        assert matches[0] == {"name": "David Byrne", "email": "david@boss.com",
+                              "emails": ["david@boss.com", "david2@boss.com"]}
+        assert matches[1]["name"] == "Dana"
+    finally:
+        await client.aclose()

@@ -102,8 +102,26 @@ SHUTDOWN = threading.Event()
 class Config:
     """Service configuration; every field is settable through OTTO_TTS_* env vars."""
 
+    #: "chatterbox" (ResembleAI, default) or "qwen" (faster-qwen3-tts)
+    backend: str = "chatterbox"
     model: str = DEFAULT_MODEL
     device: str = "cuda:0"
+    #: chatterbox: reference clips for zero-shot cloning (voices/<name>.wav)
+    voices_dir: str = "voices"
+    #: chatterbox: 0.25 = flat reading, 1.0 = very expressive
+    exaggeration: float = 0.7
+    #: chatterbox: Resemble's perth watermark adds a faint burst at clip starts;
+    #: a private assistant has no use for it
+    watermark: bool = False
+    #: linear fade-in applied to the first samples of every segment
+    fade_in_ms: int = 12
+    #: chatterbox conditioning strength — high values make delivery *stiff*,
+    #: low values let prosody move; pace is handled by `stretch` instead
+    cfg_weight: float = 0.5
+    #: post-generation time-stretch applied to every clip (1.12 ≈ 12% slower).
+    #: Pitch-preserving WSOLA — the model's pace knobs barely move a clone, and
+    #: cranking cfg up kills the intonation, so the audio is stretched instead.
+    stretch: float = 1.12
     chunk_size: int = 4
     instruct: str = DEFAULT_INSTRUCT
     mock: bool = False
@@ -113,17 +131,27 @@ class Config:
     trim_silence: bool = True
     lead_keep_ms: int = 12
     #: a fixed, identical breath after every segment — the model's own tail is
-    #: trimmed away and replaced, so cadence stays even across seams
-    pause_ms: int = 160
+    #: trimmed away and replaced, so cadence stays even across seams. This must
+    #: sit at or above the model's own in-clip sentence pauses, or clip seams
+    #: sound pinched next to in-clip pauses and transitions stumble.
+    pause_ms: int = 280
     tail_keep_ms: int = 25
     tail_hold_ms: int = 150
 
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
+            backend=(os.environ.get("OTTO_TTS_BACKEND") or "chatterbox").strip().lower(),
             model=os.environ.get("OTTO_TTS_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
             device=os.environ.get("OTTO_TTS_DEVICE", "cuda:0").strip() or "cuda:0",
             chunk_size=max(1, _env_int("OTTO_TTS_CHUNK_SIZE", 4)),
+            voices_dir=os.environ.get("OTTO_TTS_VOICES_DIR", "voices").strip() or "voices",
+            exaggeration=_env_float("OTTO_TTS_EXAGGERATION", 0.7, 0.05, 1.0),
+            watermark=os.environ.get("OTTO_TTS_WATERMARK", "0").strip().lower()
+            in {"1", "true", "yes", "on"},
+            fade_in_ms=max(0, _env_int("OTTO_TTS_FADE_IN_MS", 12)),
+            cfg_weight=_env_float("OTTO_TTS_CFG", 0.5, 0.3, 0.8),
+            stretch=_env_float("OTTO_TTS_STRETCH", 1.12, 0.5, 2.0),
             instruct=os.environ.get("OTTO_TTS_INSTRUCT", DEFAULT_INSTRUCT),
             mock=os.environ.get("OTTO_TTS_MOCK", "0").strip().lower() in {"1", "true", "yes", "on"},
             ref_audio=os.environ.get("OTTO_TTS_REF_AUDIO") or None,
@@ -131,7 +159,7 @@ class Config:
             max_chars=max(1, _env_int("OTTO_TTS_MAX_CHARS", 400)),
             trim_silence=os.environ.get("OTTO_TTS_TRIM_SILENCE", "1").strip().lower()
             in {"1", "true", "yes", "on"},
-            pause_ms=max(0, _env_int("OTTO_TTS_PAUSE_MS", 160)),
+            pause_ms=max(0, _env_int("OTTO_TTS_PAUSE_MS", 280)),
             lead_keep_ms=max(0, _env_int("OTTO_TTS_LEAD_KEEP_MS", 12)),
             tail_keep_ms=max(0, _env_int("OTTO_TTS_TAIL_KEEP_MS", 25)),
             tail_hold_ms=max(0, _env_int("OTTO_TTS_TAIL_HOLD_MS", 150)),
@@ -142,12 +170,21 @@ class Config:
         """Which generation API the loaded weights expose."""
         if self.mock:
             return "mock"
+        if self.backend == "chatterbox":
+            return "chatterbox"
         name = self.model.lower()
         if "voicedesign" in name:
             return "design"
         if name.endswith("-base"):
             return "clone"
         return "custom"
+
+
+def _env_float(name: str, default: float, low: float, high: float) -> float:
+    try:
+        return min(high, max(low, float(os.environ.get(name, default))))
+    except (TypeError, ValueError):
+        return default
 
 
 def _env_int(name: str, default: int) -> int:
@@ -246,6 +283,151 @@ class QwenBackend:
             yield np.asarray(audio, dtype=np.float32).reshape(-1)
 
 
+def _time_stretch(audio: np.ndarray, rate: float) -> np.ndarray:
+    """Pitch-preserving WSOLA stretch; rate > 1 slows the speech down.
+
+    Chatterbox's own pace knob barely moves a voice clone and pushing it high
+    stiffens the delivery, so clips are stretched in the time domain instead:
+    overlapping windows are re-aligned by correlation and cross-faded, which
+    slows the speech while leaving pitch and timbre alone.
+    """
+    if abs(rate - 1.0) < 1e-3 or audio.size < 4096:
+        return audio
+    window = 1024  # ~43 ms at 24 kHz
+    hop_in = window // 2
+    hop_out = max(1, int(round(hop_in * rate)))
+    search = 200
+    shape = np.hanning(window).astype(np.float32)
+    if audio.size < window + search + 1:
+        return audio
+
+    total = int(audio.size * rate) + 2 * window
+    out = np.zeros(total, dtype=np.float32)
+    norm = np.zeros(total, dtype=np.float32)
+    overlap = window - hop_out
+    views = np.lib.stride_tricks.sliding_window_view(audio, window)
+
+    src = dst = 0
+    while src + search < views.shape[0] and dst + window < total:
+        if dst == 0:
+            offset = 0
+        else:
+            reference = out[dst : dst + overlap]
+            lo = max(0, src - search)
+            hi = min(views.shape[0] - 1, src + search)
+            if hi <= lo:
+                break
+            errors = np.einsum("ij,ij->i", views[lo : hi + 1, :overlap] - reference,
+                               views[lo : hi + 1, :overlap] - reference)
+            offset = lo + int(np.argmin(errors))
+        out[dst : dst + window] += audio[offset : offset + window] * shape
+        norm[dst : dst + window] += shape
+        dst += hop_out
+        src += hop_in
+    out = out[: dst + window]
+    return out / np.maximum(norm[: out.size], 1e-6)
+
+
+class _NoWatermark:
+    """Stand-in that passes audio through untouched."""
+
+    def apply_watermark(self, wav, sample_rate=None, **_):  # noqa: ANN001
+        return wav
+
+
+class ChatterboxBackend:
+    """ResembleAI Chatterbox — steadier prosody than the small Qwen model.
+
+    One clip per request (no mid-generation streaming): time-to-first-audio is
+    the synthesis of the first, deliberately short chunk, and a cancelled
+    request finishes the in-flight clip — always a few seconds at most — before
+    the lock frees. Speed maps onto ``cfg_weight``, Chatterbox's own pace
+    control, so the voice speeds up without the pitch shift a resample gives;
+    ``handles_speed`` tells the server not to resample on top.
+
+    Voices are zero-shot clones: drop a reference clip into ``voices/<name>.wav``
+    and it appears in ``/voices``; an unknown name falls back to the built-in
+    default voice.
+    """
+
+    handles_speed = True
+
+    def __init__(self, cfg: Config) -> None:
+        self.cfg = cfg
+        self.model: Any = None
+        self.warmup_s = 0.0
+
+    def load(self) -> None:
+        from chatterbox.tts import ChatterboxTTS
+
+        log.info("loading Chatterbox on %s", self.cfg.device)
+        self.model = ChatterboxTTS.from_pretrained(device=self.cfg.device)
+        if not self.cfg.watermark:
+            # perth embeds an inaudible-by-design provenance mark; in practice
+            # it is the faint "noise" people hear at the very start of a clip
+            self.model.watermarker = _NoWatermark()
+            log.info("chatterbox watermark disabled")
+
+    def warmup(self) -> None:
+        """Prime the CUDA kernels with one tiny clip (conds already loaded)."""
+        started = time.perf_counter()
+        wav = self.model.generate(
+            "Ready.",
+            exaggeration=self.cfg.exaggeration,
+            cfg_weight=self.cfg.cfg_weight,
+        )
+        del wav
+        self.warmup_s = time.perf_counter() - started
+        log.info("chatterbox warmup clip in %.2fs", self.warmup_s)
+
+    def reference_for(self, voice: str) -> str | None:
+        """Reference clip for a voice name; unknown names land on default.wav.
+
+        The client keeps whatever voice the user last picked in localStorage
+        ("Ryan", say), so a missing name must degrade to the shipped default
+        voice rather than the model's rushed built-in conditionals.
+        """
+        base = Path(self.cfg.voices_dir)
+        wanted = (voice or "").strip()
+        for name in dict.fromkeys(filter(None, (wanted, "default"))):
+            key = name.lower()
+            for suffix in (".wav", ".mp3", ".flac", ".ogg"):
+                candidate = base / (name + suffix)
+                if candidate.is_file():
+                    return str(candidate)
+            # the UI keeps its own capitalisation ("Neil") — match stems case-insensitively
+            if base.is_dir():
+                for path in sorted(base.iterdir()):
+                    if path.stem.lower() == key and path.suffix.lower() in (".wav", ".mp3", ".flac", ".ogg"):
+                        return str(path)
+        return None
+
+    def stream(self, req: SpeechRequest) -> Iterator[np.ndarray]:
+        if self.model is None:
+            raise RuntimeError("model not loaded")
+        speed = float(req.speed or 1.0)
+        cfg_weight = float(self.cfg.cfg_weight)
+        if abs(speed - 1.0) > 1e-3:
+            # inverse mapping: faster speech = lower cfg weight, pitch intact
+            cfg_weight = min(0.8, max(0.3, cfg_weight / speed))
+        kwargs: dict[str, Any] = {
+            "text": req.text,
+            "exaggeration": float(self.cfg.exaggeration),
+            "cfg_weight": cfg_weight,
+        }
+        reference = self.reference_for(req.voice)
+        if reference:
+            kwargs["audio_prompt_path"] = reference
+        wav = self.model.generate(**kwargs)
+        if hasattr(wav, "detach"):
+            wav = wav.detach().cpu().numpy()
+        audio = np.asarray(wav, dtype=np.float32).reshape(-1)
+        audio = _time_stretch(audio, self.cfg.stretch)
+        step = 8192
+        for i in range(0, len(audio), step):
+            yield audio[i : i + step]
+
+
 # ---------------------------------------------------------------------------
 # engine: load state + single-flight lock
 # ---------------------------------------------------------------------------
@@ -254,7 +436,12 @@ class Engine:
 
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
-        self.backend: MockBackend | QwenBackend = MockBackend(cfg) if cfg.mock else QwenBackend(cfg)
+        if cfg.mock:
+            self.backend: Any = MockBackend(cfg)
+        elif cfg.backend == "chatterbox":
+            self.backend = ChatterboxBackend(cfg)
+        else:
+            self.backend = QwenBackend(cfg)
         self.lock = asyncio.Lock()
         self.ready = False
         self.error: str | None = None
@@ -347,7 +534,11 @@ _END = object()
 
 
 def _render(backend, req: SpeechRequest) -> Iterator[np.ndarray]:
-    return _apply_speed(backend.stream(req), req.speed)
+    if getattr(backend, "handles_speed", False):
+        # the backend has its own, pitch-preserving pace control
+        yield from backend.stream(req)
+        return
+    yield from _apply_speed(backend.stream(req), req.speed)
 
 
 def _apply_speed(chunks: Iterator[np.ndarray], speed: float) -> Iterator[np.ndarray]:
@@ -477,6 +668,8 @@ def _resolve_voice(mode: str, voice: str | None) -> str:
         return CLONE_VOICE_ID
     if mode == "design":
         return DESIGN_VOICE_ID
+    if mode == "chatterbox":
+        return (voice or "").strip() or "default"
     wanted = (voice or "").strip().lower()
     if not wanted:
         return DEFAULT_VOICE
@@ -519,6 +712,28 @@ def _voice_table(cfg: Config) -> tuple[str, list[dict[str, str]]]:
             "language": "English",
             "kind": "design",
         }]
+    if cfg.mode == "chatterbox":
+        base = Path(cfg.voices_dir)
+        default_ref = base / "default.wav"
+        default_entry = {
+            "id": "default",
+            "description": f"cloned from {default_ref.name}" if default_ref.is_file() else "Chatterbox built-in voice",
+            "language": "English",
+            "kind": "clone" if default_ref.is_file() else "chatterbox",
+        }
+        table = [default_entry]
+        if base.is_dir():
+            for path in sorted(base.iterdir()):
+                if path.stem.lower() == "default":
+                    continue  # already listed via the default entry above
+                if path.suffix.lower() in (".wav", ".mp3", ".flac", ".ogg"):
+                    table.append({
+                        "id": path.stem,
+                        "description": f"cloned from {path.name}",
+                        "language": "English",
+                        "kind": "clone",
+                    })
+        return "default", table
     return DEFAULT_VOICE, [dict(preset) for preset in PRESET_VOICES]
 
 
@@ -555,6 +770,7 @@ class SilenceTrimmer:
         self.pad_lead = int(cfg.lead_keep_ms * SAMPLE_RATE / 1000) * 2
         self.pad_tail = int(cfg.tail_keep_ms * SAMPLE_RATE / 1000) * 2
         self.hold = int(cfg.tail_hold_ms * SAMPLE_RATE / 1000) * 2
+        self.fade = max(0, int(cfg.fade_in_ms * SAMPLE_RATE / 1000))
         self.threshold = int(0.006 * 32767)
         self.started = False
         self.held = bytearray()
@@ -569,6 +785,7 @@ class SilenceTrimmer:
             data, self.dropped_lead = self._trim_lead(data)
             if not data:
                 return b""
+            data = self._fade_in(data)
             self.started = True
         self.held += data
         if len(self.held) <= self.hold:
@@ -595,6 +812,18 @@ class SilenceTrimmer:
         return bytes(data[: end * 2])
 
     # ------------------------------------------------------------- internals
+    def _fade_in(self, data: bytes) -> bytes:
+        """Linear ramp over the first samples — kills clicks and onset hiss."""
+        if not self.fade or len(data) < 4:
+            return data
+        samples = bytearray(data)
+        count = min(self.fade, len(samples) // 2)
+        for i in range(count):
+            gain = (i + 1) / count
+            value = int(int.from_bytes(samples[i * 2 : i * 2 + 2], "little", signed=True) * gain)
+            samples[i * 2 : i * 2 + 2] = value.to_bytes(2, "little", signed=True)
+        return bytes(samples)
+
     def _trim_lead(self, data: bytes) -> tuple[bytes, int]:
         samples = memoryview(data).cast("h")
         for index, sample in enumerate(samples):
@@ -712,6 +941,7 @@ async def health(request: Request) -> dict[str, Any]:
     _default, voices = _voice_table(cfg)
     return {
         "ok": True,
+        "backend": cfg.backend,
         "model": cfg.model,
         "device": cfg.device,
         "gpu": _gpu_name(),

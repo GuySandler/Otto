@@ -73,6 +73,7 @@ const PREROLL_MS = 320; // audio kept before onset so the first word is intact
 const ENDPOINT_SILENCE_RATIO = 0.55; // "silence" is below this share of the threshold that opened the turn
 const ENDPOINT_REARM_MS = 40; // speech this long after a dip restarts the end-of-speech clock
 const BARGE_IN_MULTIPLIER = 1.6; // barge-in needs this much more level than a normal turn
+const BARGE_IN_GAP_MULTIPLIER = 1.35; // …and synthesis gaps a bit less — but still above plain noise
 const BARGE_IN_GUARD_MS = 300; // ignore the first 300 ms of playback: Otto's own tail reaches the mic
 const ENDPOINT_FLOOR_RATIO = 1.25; // ...and never "silent" until we are this close to the room's floor
 const MAX_UTTERANCE_MS = 120000; // dictation length — a turn always ends, even if the levels never settle
@@ -1124,6 +1125,13 @@ class Capture {
       this.noiseFloor = clamp(Math.max(this.noiseFloor * 0.7, rms * 0.9), NOISE_FLOOR_MIN, 0.02);
     } else if (!voiced && !floorFrozen) {
       this.noiseFloor = clamp(this.noiseFloor * 0.985 + rms * 0.015, NOISE_FLOOR_MIN, NOISE_FLOOR_MAX);
+    } else if (!this.open && voiced && !floorFrozen) {
+      // A bursty room (typing, chair creaks, doors) keeps the floor pinned at its
+      // QUIET baseline if only sub-threshold frames are learned — while bursts go
+      // right on tripping the mic. Loud-but-ambient frames lift the floor very
+      // slowly, so the pickup threshold converges on the room's real noise.
+      // Real speech lifts it negligibly for the ~140 ms before the turn opens.
+      this.noiseFloor = clamp(this.noiseFloor * 0.9985 + rms * 0.0015, NOISE_FLOOR_MIN, NOISE_FLOOR_MAX);
     } else if (this.open && rms < openThreshold) {
       // while tracking speech: learn only from frames that are *below* the pickup level,
       // very slowly — this is what lets a turn end in a room with a steady hiss
@@ -1132,10 +1140,19 @@ class Capture {
 
     if (!this.open) {
       if (this.ottoSpeaking()) {
-        // Interrupting Otto uses its own, stricter rule: sustained speech well above the
-        // pickup level, and nothing at all during the guard after playback starts.
+        // Interrupting Otto uses its own rule: sustained speech above the pickup
+        // level, and nothing at all during the guard after playback starts.
+        // While audio is actually playing the bar is stricter (1.6×) so a cough
+        // or a keystroke doesn't cut Otto off — but during the gaps between
+        // synthesis batches the user is talking into silence; a normal voice
+        // strength must interrupt there.
         this.speechAcc = 0;
-        this.bargeAcc = rms >= openThreshold * BARGE_IN_MULTIPLIER ? this.bargeAcc + durationMs : 0;
+        const playing = isFinite(this.ottoPlayedForMs());
+        // Playing audio: 1.6× — a cough must not cut Otto off. Synthesis gaps:
+        // no audio is playing, but plain room noise must not end the answer
+        // either, so gaps still demand clearly-above-threshold sustained sound.
+        const bar = playing ? BARGE_IN_MULTIPLIER : BARGE_IN_GAP_MULTIPLIER;
+        this.bargeAcc = rms >= openThreshold * bar ? this.bargeAcc + durationMs : 0;
         if (this.bargeAcc >= interruptMs() && this.ottoPlayedForMs() >= BARGE_IN_GUARD_MS) {
           if (settings.debug) {
             console.debug(

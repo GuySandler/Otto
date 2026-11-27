@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Run Otto's local Qwen3-TTS service (GPU1 by default, http://127.0.0.1:8801).
+# Run Otto's local TTS service (GPU1 by default, http://127.0.0.1:8801).
 #
-#   ./scripts/run_tts.sh                 # real model on CUDA device 1
+#   ./scripts/run_tts.sh                 # Chatterbox on CUDA device 1 (default)
+#   OTTO_TTS_BACKEND=qwen ./scripts/run_tts.sh  # the previous Qwen3-TTS model
 #   OTTO_TTS_MOCK=1 ./scripts/run_tts.sh # fake 24 kHz backend, no GPU needed
 set -euo pipefail
 
@@ -19,7 +20,11 @@ fi
 HOST="${OTTO_TTS_HOST:-127.0.0.1}"
 PORT="${OTTO_TTS_PORT:-8801}"
 PYTHON="${OTTO_TTS_PYTHON:-tts/.venv/bin/python}"
-MODEL="${OTTO_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice}"
+export OTTO_TTS_BACKEND="${OTTO_TTS_BACKEND:-chatterbox}"
+# chatterbox's sampler prints a tqdm bar per synthesis — silence it for logs
+export TQDM_DISABLE="${TQDM_DISABLE:-1}"
+export OTTO_TTS_MODEL="${OTTO_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice}"
+MODEL="${OTTO_TTS_MODEL}"
 DEVICE="${OTTO_TTS_DEVICE:-cuda:0}"
 
 echo "Otto TTS ───────────────────────────────────────────────────────────"
@@ -29,7 +34,7 @@ echo "  url    : http://${HOST}:${PORT}"
 if [[ "${OTTO_TTS_MOCK:-0}" == "1" ]]; then
   echo "  mode   : mock (synthetic tone, no model loaded)"
 else
-  echo "  mode   : from model name  chunk_size=${OTTO_TTS_CHUNK_SIZE:-4}"
+  echo "  backend: ${OTTO_TTS_BACKEND}  (Qwen: chunk_size=${OTTO_TTS_CHUNK_SIZE:-4}; Chatterbox: exaggeration=${OTTO_TTS_EXAGGERATION:-0.7} cfg=${OTTO_TTS_CFG:-0.5} stretch=${OTTO_TTS_STRETCH:-1.12} pause=${OTTO_TTS_PAUSE_MS:-280}ms)"
 fi
 echo "────────────────────────────────────────────────────────────────────"
 

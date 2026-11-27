@@ -104,10 +104,17 @@ google:
     - https://www.googleapis.com/auth/calendar.events.readonly
     - https://www.googleapis.com/auth/calendar.events
     - https://www.googleapis.com/auth/userinfo.email
+    # People API: the user's own name (email sign-offs) + contact search
+    - https://www.googleapis.com/auth/userinfo.profile
+    - https://www.googleapis.com/auth/contacts.readonly
 
 stt:
   # whisper-large-v3 round-trips ~2x faster than parakeet through the gateway
   model: whisper-large-v3
+  # if the primary STT model is down on the gateway (502s happen), fall back in
+  # this order — one dead model must not mute the microphone
+  fallback_models:
+    - parakeet-tdt-0.6b-v3
   language: null          # null = auto
   partials: true          # live captions while the user speaks
   partial_interval_ms: 550
@@ -124,11 +131,11 @@ tts:
   # don't give TTS a 3-word fragment — let the next sentence join it
   min_chunk_chars: 40
   # merge sentences that are already queued into one synthesis request, so the
-  # prosody carries across the sentence boundary instead of resetting. The cap
-  # keeps any single synthesis short enough that the voice does not drift;
-  # each seam gets an identical breath from the TTS server.
+  # prosody carries across the sentence boundary instead of resetting. Chatterbox
+  # returns whole clips, so the cap bounds both generation latency and its
+  # truncation risk on long text; each seam gets an identical breath.
   coalesce_queue: true
-  coalesce_max_chars: 200
+  coalesce_max_chars: 120
   # fall back to text-only when the local model is unavailable
   allow_degraded: true
 
@@ -138,9 +145,10 @@ turn_taking:
   barge_in_enabled: true
   # if the model calls a tool without having said anything, speak a filler after this delay
   tool_filler_delay_ms: 250
-  # if the model has not produced a first token by then, say a short hedge so the
-  # silence never exceeds ~1.5s (0 disables)
-  first_token_filler_ms: 1100
+  # hedge only if the model itself is slow to produce a first token. Keep this
+  # ABOVE the TTS time-to-first-audio (~1.5s for Chatterbox), otherwise the hedge
+  # speaks on every single turn. Fillers for running tools are separate below.
+  first_token_filler_ms: 2600
   # if the browser stops sending audio mid-utterance (stuck VAD, killed tab),
   # transcribe what we have and run the turn instead of waiting forever
   utterance_stall_s: 6
@@ -182,6 +190,12 @@ session:
     Do exactly what was asked and stop: never enumerate optional extras (more
     reminders, invitees, locations, Meet links) or ask about details the user
     did not mention. Confirm the finished result in one short sentence.
+    People: when the user names a person, look them up with people_search
+    before using an address. When they use a relationship ("my boss", "my
+    dentist"), resolve the person from the conversation or their contacts —
+    and if you cannot, ask for the NAME once, never an email address, and
+    never invent either. When drafting email, call people_profile for the
+    user's own name and sign the draft with it ('Best, <name>').
 
     Conversation memory: the block below labelled "Items seen earlier in this
     conversation" lists real ids from earlier tool calls. When the user says

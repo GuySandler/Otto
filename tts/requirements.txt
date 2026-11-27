@@ -1,20 +1,25 @@
-# Local Qwen3-TTS streaming service (tts/server.py).
+# Local TTS service (tts/server.py) — Chatterbox by default, Qwen3-TTS optional.
 #
 # Install into the GPU venv:
 #   uv venv --python 3.12 tts/.venv
 #   uv pip install --python tts/.venv/bin/python -r tts/requirements.txt
 #
-# The RTX 5060 Ti is Blackwell (sm_120): the PyPI torch wheels do not contain
-# kernels for it, so the CUDA 12.8 wheel index is required.
+# The RTX 5060 Ti is Blackwell (sm_120): the PyPI torch wheels carry no kernels
+# for it, so the CUDA 12.8 wheel index is required (torch >= 2.7).
 --extra-index-url https://download.pytorch.org/whl/cu128
 
-torch==2.11.0
-torchaudio==2.11.0
+torch==2.9.1+cu128
+torchaudio==2.9.1+cu128
 
+# default backend — one clip per request, voice cloning, pitch-preserving pace
+chatterbox-tts==0.1.7
+
+# alternative backend (OTTO_TTS_BACKEND=qwen) — streaming, lower latency.
+# transformers 5.15.1 is the shared pin: chatterbox runs fine on it, while 5.2+
+# breaks the Qwen3-TTS config classes ("validate_layer_type"). This venv can
+# therefore serve BOTH backends — handy for producing voice-clone references
+# (voices/*.wav) with the old Qwen voices.
 faster-qwen3-tts==0.5.4
-# REQUIRED PIN. transformers 5.24 breaks Qwen3-TTS Mimi encoder init
-# ("property 'upsample' has no setter" at load time); tts/compat.py only papers
-# over the read-only properties on 5.15.x.
 transformers==5.15.1
 
 fastapi

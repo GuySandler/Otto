@@ -355,7 +355,8 @@ async def test_draft_becomes_an_action_for_the_dashboard(tmp_path):
     assert len(stored) == 1
     assert stored[0].kind == "draft"
     assert stored[0].title == "Re: lease"
-    assert "compose=draft_9" in stored[0].url
+    # drafts land on the Drafts label — per-draft compose links are unreliable
+    assert stored[0].url.endswith("/#drafts")
     created = collector.of("action.created")
     assert created and created[0]["open"] == 1
     assert created[0]["action"]["subtitle"] == "to sarah@acme.com"
@@ -495,3 +496,25 @@ def test_confirmation_ids_speak_as_titles(tmp_path):
         {"eventId": "ku5mdqp4bmnjc66ppqvl8juv6o"},
     )
     assert preview["title"] == "Otto reminder test"
+
+
+def test_system_prompt_carries_the_users_name(tmp_path):
+    """Once people_profile has cached the name, every session signs drafts with it."""
+    session, _ = make_session(tmp_path)
+
+    class Users:
+        saved: dict = {}
+
+        def set_secret(self, user_id, key, value):
+            self.saved[(user_id, key)] = value
+
+        def get_secret(self, user_id, key):
+            return self.saved.get((user_id, key))
+
+    session.integrations.users = Users()
+    session.integrations.user_id = "u1"
+    session.integrations.users.set_secret("u1", "profile_name", "Guy Sandler")
+    session._build_system_message(replace=True)
+    system = session.messages[0]["content"]
+    assert "The user's name is Guy Sandler" in system
+    assert "sign drafted email" in system

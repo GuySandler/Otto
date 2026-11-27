@@ -354,16 +354,34 @@ class Session:
         await self.send({"type": ServerType.STATE, "state": state, "detail": detail})
 
     # ------------------------------------------------------------------ prompts
+    def _user_name_block(self) -> str:
+        """The user's own name (cached by the people_profile tool) for sign-offs."""
+        try:
+            integrations = self.integrations
+            users = getattr(integrations, "users", None)
+            user_id = getattr(integrations, "user_id", None)
+            if users is not None and user_id:
+                name = str(users.get_secret(user_id, "profile_name") or "").strip()
+                if name:
+                    return (
+                        f" The user's name is {name}; sign drafted email with it "
+                        "('Best, <name>') unless the conversation says otherwise."
+                    )
+        except Exception:  # noqa: BLE001 — a missing name must never break the prompt
+            pass
+        return ""
+
     def _build_system_message(self, *, replace: bool = False) -> None:
         global_rules = str(self.settings.cfg("session", "global_rules", default="") or "")
         memory_block = self.memory.prompt_block()
+        user_name = self._user_name_block()
         send_tool = self.registry.get("gmail_send") if hasattr(self, "registry") else None
         try:
             send_available = bool(send_tool and send_tool.is_available(self.tool_context))
         except Exception:  # noqa: BLE001
             send_available = False
         mcp_note = self.mcp.prompt_note(send_available=send_available) if hasattr(self, "mcp") else ""
-        extra = "\n\n".join(part for part in (self.system_extra, mcp_note, memory_block) if part)
+        extra = "\n\n".join(part for part in (self.system_extra, mcp_note, user_name, memory_block) if part)
         prompt = self.personality.build_system_prompt(global_rules=global_rules, extra=extra)
         if self.messages and self.messages[0].get("role") == "system" and replace:
             self.messages[0] = {"role": "system", "content": prompt}
@@ -543,6 +561,15 @@ class Session:
             transcript = await self.stt.transcribe(pcm, model=self.config.stt_model or None)
         except STTError as exc:
             await self.send({"type": ServerType.ERROR, "message": f"Transcription failed: {exc}"})
+            # one spoken apology beats a silent failure on a voice turn — the
+            # user is left hanging otherwise
+            try:
+                await self.speech.say(
+                    "Sorry, the speech service just hiccuped and I lost that. Could you say it again?"
+                )
+                await self.speech.drain()
+            except Exception:  # noqa: BLE001 — the apology must never mask the error
+                pass
             await self.set_state(State.IDLE)
             return
         text = transcript.text.strip()
